@@ -47,3 +47,19 @@ pytest -q
 3. Approval workflow and access certifications
 4. SCIM integration with a test identity provider
 5. Hardened audit storage and integration tests
+
+
+## Synthetic enterprise demo dataset
+
+Use the **🌱 Load 500 demo employees** button in the sidebar, or run:
+
+```bash
+python seed_data.py
+streamlit run app.py
+```
+
+The deterministic generator adds 500 synthetic identities, 12 application catalog entries, application access assignments, and example access requests. It uses the reserved `identityguard.example` domain; no real employees or live SaaS accounts are involved. Seeding is idempotent: clicking again does not duplicate the generated identities. Existing local data is preserved.
+
+Explore **Applications** for entitlement assignments, **Access Requests** for a read-only request queue, and **Access Review** for stale grants and access retained by disabled identities.
+
+The seeded entitlement data intentionally includes governance issues for analysis. Counts reflect generated demo records, not real organizational security findings. JML operations in this MVP change the local identity record only; they do not revoke application entitlements. A production system would need lifecycle-driven entitlement reconciliation, authenticated operator authorization, and protected audit logs.
