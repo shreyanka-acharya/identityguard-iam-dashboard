@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 from iam import initialize, identities, events, joiner, mover, leaver, access_findings, ROLES
+from seed_data import seed_enterprise, enterprise_summary, enterprise_table
 
 st.set_page_config(page_title='IdentityGuard', page_icon='🛡️', layout='wide')
 initialize()
@@ -31,8 +32,15 @@ div[data-testid="stDataFrame"], [data-testid="stPlotlyChart"] {
 st.title('🌷 IdentityGuard')
 st.markdown('**Your little corner of identity security** 🌼')
 st.caption('Local IAM learning dashboard | Synthetic identities | No production authentication')
-page = st.sidebar.radio('Navigate', ['🌼 Overview', '🌷 Identities', '🌿 JML Workflows', '💛 Access Review', '📝 Audit Log'])
+page = st.sidebar.radio('Navigate', ['🌼 Overview', '🌷 Identities', '🌿 JML Workflows', '💛 Access Review', '📝 Audit Log', '🧩 Applications', '🎟️ Access Requests'])
+st.sidebar.divider()
+st.sidebar.caption('Synthetic enterprise demo')
+if st.sidebar.button('🌱 Load 500 demo employees'):
+    created = seed_enterprise()
+    st.sidebar.success('Demo records loaded!' if created else 'Demo records already loaded.')
+    st.rerun()
 people = identities()
+summary = enterprise_summary()
 
 if page == '🌼 Overview':
     a,b,c,d = st.columns(4)
@@ -40,13 +48,26 @@ if page == '🌼 Overview':
     b.metric('Active', sum(p['status']=='Active' for p in people))
     c.metric('Disabled', sum(p['status']=='Disabled' for p in people))
     d.metric('Active administrators', len(access_findings()))
+    e,f,g,h = st.columns(4)
+    e.metric('Applications',summary['applications'])
+    f.metric('Access assignments',summary['assignments'])
+    g.metric('Pending requests',summary['pending'])
+    h.metric('Disabled-user grants',summary['orphaned_access'])
+    if summary['orphaned_access']:
+        st.warning('Demo finding: disabled identities still have application grants. These are review candidates, not verified live accounts.')
     if people:
         df = pd.DataFrame(people)
         st.plotly_chart(px.bar(df.groupby('department',as_index=False).size(), x='department',y='size',title='Identities by department',color='department',color_discrete_sequence=['#F2B9D0','#C2DDB7','#F6DE8D','#C8BEEB']).update_layout(paper_bgcolor='#FFF9F0',plot_bgcolor='#FFF9F0',font_color='#4C5949',showlegend=False,yaxis_title='Identities'),use_container_width=True)
         st.plotly_chart(px.pie(df,names='role',title='Role distribution',color_discrete_sequence=['#F2B9D0','#C2DDB7','#F6DE8D','#C8BEEB']).update_layout(paper_bgcolor='#FFF9F0',font_color='#4C5949'),use_container_width=True)
 elif page == '🌷 Identities':
     st.subheader('Identity directory')
-    st.dataframe(pd.DataFrame(people),hide_index=True,use_container_width=True)
+    departments = ['All'] + sorted({p['department'] for p in people})
+    department = st.selectbox('Department',departments)
+    search = st.text_input('Search name or email')
+    filtered = [p for p in people if (department=='All' or p['department']==department) and
+                (not search or search.lower() in (p['name']+' '+p['email']).lower())]
+    st.caption(f'{len(filtered)} identities shown')
+    st.dataframe(pd.DataFrame(filtered),hide_index=True,use_container_width=True)
 elif page == '🌿 JML Workflows':
     st.subheader('Joiner - Mover - Leaver')
     join_tab, move_tab, leave_tab = st.tabs(['Onboard', 'Transfer', 'Offboard'])
@@ -92,6 +113,29 @@ elif page == '💛 Access Review':
     st.subheader('Privileged access review')
     st.info('Review candidates only: active Administrator accounts. This is not a full risk-scoring engine.')
     st.dataframe(pd.DataFrame(access_findings()),hide_index=True,use_container_width=True)
+    st.subheader('Access governance findings')
+    st.metric('Stale or never-used grants',summary['stale_access'])
+    grants = pd.DataFrame(enterprise_table('entitlements'))
+    if not grants.empty:
+        st.caption('Disabled-user grants require reconciliation. This demo does not provision or revoke real access.')
+        st.dataframe(grants[grants['identity_status']=='Disabled'],hide_index=True,use_container_width=True)
+elif page == '🧩 Applications':
+    st.subheader('Application catalog')
+    st.dataframe(pd.DataFrame(enterprise_table('applications')),hide_index=True,use_container_width=True)
+    st.subheader('Employee application access')
+    grants = pd.DataFrame(enterprise_table('entitlements'))
+    if not grants.empty:
+        app_filter = st.selectbox('Filter application',['All']+sorted(grants['application'].unique().tolist()))
+        if app_filter != 'All': grants = grants[grants['application']==app_filter]
+        st.dataframe(grants,hide_index=True,use_container_width=True)
+elif page == '🎟️ Access Requests':
+    st.subheader('Synthetic access request queue')
+    st.caption('Read-only request examples; no approval or provisioning engine is connected.')
+    requests = pd.DataFrame(enterprise_table('requests'))
+    if not requests.empty:
+        status = st.selectbox('Status',['All','Pending','Approved','Rejected'])
+        if status != 'All': requests = requests[requests['status']==status]
+        st.dataframe(requests,hide_index=True,use_container_width=True)
 else:
     st.subheader('Audit trail')
     st.dataframe(pd.DataFrame(events()),hide_index=True,use_container_width=True)
