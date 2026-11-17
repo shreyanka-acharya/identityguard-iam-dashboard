@@ -1,6 +1,7 @@
 import sqlite3
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 from iam import initialize, identities, events, joiner, mover, leaver, access_findings, ROLES
 from seed_data import seed_enterprise, enterprise_summary, enterprise_table
@@ -32,6 +33,10 @@ div[data-testid="stDataFrame"], [data-testid="stPlotlyChart"] {
  border-radius: 14px; overflow: hidden;
 }
 [data-testid="stAlert"] { border-radius: 12px; }
+[data-testid="stVerticalBlockBorderWrapper"] { border-radius: 14px; }
+[data-testid="stMetric"] { min-height: 115px; }
+[data-testid="stMetricLabel"] p { font-size: .9rem; }
+[data-testid="stPlotlyChart"] { background: #F1F3EC; }
 </style>
 """, unsafe_allow_html=True)
 st.title('Accessly')
@@ -47,23 +52,89 @@ if st.sidebar.button('Load 500 demo employees'):
 people = identities()
 summary = enterprise_summary()
 
+def gauge(title, value, color):
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number", value=round(value, 1),
+        number={"suffix": "%", "font": {"size": 29, "color": "#46564B"}},
+        title={"text": title, "font": {"size": 15, "color": "#46564B"}},
+        gauge={"axis": {"range": [0, 100], "tickwidth": 0},
+               "bar": {"color": color, "thickness": 0.38},
+               "bgcolor": "#E1E6DC", "borderwidth": 0}
+    ))
+    fig.update_layout(height=235, margin=dict(l=25,r=25,t=55,b=10),
+                      paper_bgcolor="#F1F3EC",font_color="#46564B")
+    return fig
+
+
 if page == 'Overview':
+    st.subheader('Identity governance overview')
+    department = st.selectbox('Department', ['All departments'] + sorted({p['department'] for p in people}))
+    selected = [p for p in people if department == 'All departments' or p['department'] == department]
+    selected_ids = {p['id'] for p in selected}
+    active = [p for p in selected if p['status'] == 'Active']
+    grants = enterprise_table('entitlements')
+    grants = [g for g in grants if department == 'All departments' or g['department'] == department]
+    requests = enterprise_table('requests')
+    if department != 'All departments':
+        # Request rows are joined to names, so filter through identity names.
+        selected_names = {p['name'] for p in selected}
+        requests = [r for r in requests if r['employee'] in selected_names]
+    pending = sum(r['status'] == 'Pending' for r in requests)
+    disabled_grants = sum(g['identity_status'] == 'Disabled' for g in grants)
+    stale_grants = sum(g['identity_status'] == 'Active' and
+                       (not g['last_used_at'] or
+                        (pd.Timestamp.now(tz='UTC') - pd.to_datetime(g['last_used_at'], utc=True)).days > 90)
+                       for g in grants)
+    active_rate = 100 * len(active) / len(selected) if selected else 0
+    hygiene_rate = 100 * (len(grants) - disabled_grants - stale_grants) / len(grants) if grants else 0
+    decision_count = sum(r['status'] != 'Pending' for r in requests)
+    review_rate = 100 * decision_count / len(requests) if requests else 0
+
     a,b,c,d = st.columns(4)
-    a.metric('Total identities', len(people))
-    b.metric('Active', sum(p['status']=='Active' for p in people))
-    c.metric('Disabled', sum(p['status']=='Disabled' for p in people))
-    d.metric('Active administrators', len(access_findings()))
-    e,f,g,h = st.columns(4)
-    e.metric('Applications',summary['applications'])
-    f.metric('Access assignments',summary['assignments'])
-    g.metric('Pending requests',summary['pending'])
-    h.metric('Disabled-user grants',summary['orphaned_access'])
-    if summary['orphaned_access']:
-        st.warning('Demo finding: disabled identities still have application grants. These are review candidates, not verified live accounts.')
-    if people:
-        df = pd.DataFrame(people)
-        st.plotly_chart(px.bar(df.groupby('department',as_index=False).size(), x='department',y='size',title='Identities by department',color='department',color_discrete_sequence=['#E3C7CE','#B8D0BB','#E9D9A6','#D5CDE0']).update_layout(paper_bgcolor='#E8EDE5',plot_bgcolor='#E8EDE5',font_color='#46564B',showlegend=False,yaxis_title='Identities'),use_container_width=True)
-        st.plotly_chart(px.pie(df,names='role',title='Role distribution',color_discrete_sequence=['#E3C7CE','#B8D0BB','#E9D9A6','#D5CDE0']).update_layout(paper_bgcolor='#E8EDE5',font_color='#46564B'),use_container_width=True)
+    a.metric('Total identities', len(selected))
+    b.metric('Active identities', len(active))
+    c.metric('Application grants', len(grants))
+    d.metric('Pending requests', pending)
+
+    left, mid, right = st.columns([1,1,1])
+    with left:
+        st.plotly_chart(gauge('Active identity rate',active_rate,'#AFC9B2'),use_container_width=True)
+    with mid:
+        st.plotly_chart(gauge('Access hygiene',hygiene_rate,'#DDBAC4'),use_container_width=True)
+    with right:
+        st.plotly_chart(gauge('Requests decided',review_rate,'#E4D095'),use_container_width=True)
+
+    x,y,z = st.columns(3)
+    x.metric('Disabled identities',len(selected)-len(active))
+    y.metric('Disabled-user grants',disabled_grants)
+    z.metric('Stale active grants',stale_grants)
+    st.caption('Access hygiene = grants not flagged as stale or belonging to disabled identities. '
+               'Requests decided = approved or rejected sample requests. These are demo indicators, not formal compliance scores.')
+
+    left,right = st.columns([1.45,1])
+    with left:
+        st.markdown('#### Application access distribution')
+        if grants:
+            chart_df = pd.DataFrame(grants).groupby('application').size().reset_index(name='grants')
+            chart_df = chart_df.sort_values('grants',ascending=True)
+            fig = px.bar(chart_df,x='grants',y='application',orientation='h',
+                         color_discrete_sequence=['#AFC9B2'])
+            fig.update_layout(height=420,paper_bgcolor='#F1F3EC',plot_bgcolor='#F1F3EC',
+                              font_color='#46564B',margin=dict(l=10,r=15,t=15,b=25),
+                              xaxis_title='Access assignments',yaxis_title=None)
+            st.plotly_chart(fig,use_container_width=True)
+        else:
+            st.info('Load the synthetic enterprise dataset to see application access.')
+    with right:
+        st.markdown('#### Identity roles')
+        if selected:
+            df = pd.DataFrame(selected)
+            fig = px.pie(df,names='role',hole=.62,
+                         color_discrete_sequence=['#AFC9B2','#E4D095','#DDBAC4','#C8C2D9'])
+            fig.update_layout(height=420,paper_bgcolor='#F1F3EC',font_color='#46564B',
+                              margin=dict(l=10,r=10,t=15,b=20))
+            st.plotly_chart(fig,use_container_width=True)
+
 elif page == 'Identities':
     st.subheader('Identity directory')
     departments = ['All'] + sorted({p['department'] for p in people})
