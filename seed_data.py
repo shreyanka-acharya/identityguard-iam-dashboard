@@ -20,6 +20,8 @@ APPLICATIONS = [
     ('Power BI','Analytics','Standard'),
 ]
 FIRST = ['Ava','Noah','Mia','Liam','Sophia','Ethan','Isla','Oliver','Aria','Lucas','Amara','Leo','Zoe','Elijah','Nora','Kai','Priya','Maya','Theo','Iris','Jade','Aiden','Ella','Milo','Riya']
+NEPALI_FIRST = ['Aarav','Aayush','Anisha','Asmita','Bikash','Bina','Dipesh','Kritika','Nisha','Prabin','Pratiksha','Rojina','Sagar','Samiksha','Sanjay','Sarita','Srijana','Suman','Sushmita','Utsav']
+NEPALI_LAST = ['Acharya','Adhikari','Bhandari','Bhattarai','Ghimire','Gurung','Karki','Khadka','Lama','Magar','Maharjan','Neupane','Poudel','Rai','Sharma','Shrestha','Subedi','Tamang','Thapa','Tiwari']
 LAST = ['Patel','Chen','Rivera','Brooks','Kim','Singh','Garcia','Nguyen','Shah','Brown','Williams','Lee','Davis','Johnson','Khan','Martin','Wilson','Taylor','Ali','Lopez']
 ROLES = ['Viewer','Employee','Manager','Administrator']
 
@@ -64,8 +66,12 @@ def seed_enterprise(path=None, count=500):
             return False
         app_ids = {r['name']:r['id'] for r in db.execute('SELECT id,name FROM applications')}
         for i in range(count):
-            first = FIRST[i % len(FIRST)]
-            last = LAST[(i * 7 + i // len(FIRST)) % len(LAST)]
+            if i % 5 == 0:
+                first = NEPALI_FIRST[(i // 5) % len(NEPALI_FIRST)]
+                last = NEPALI_LAST[((i // 5) * 7 + i // 100) % len(NEPALI_LAST)]
+            else:
+                first = FIRST[i % len(FIRST)]
+                last = LAST[(i * 7 + i // len(FIRST)) % len(LAST)]
             department = DEPARTMENTS[i % len(DEPARTMENTS)]
             role = rng.choices(ROLES,weights=[8,70,19,3])[0]
             status = rng.choices(['Active','Disabled'],weights=[92,8])[0]
