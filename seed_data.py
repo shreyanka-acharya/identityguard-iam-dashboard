@@ -125,7 +125,7 @@ def enterprise_table(table, path=None):
            a.name AS application,a.sensitivity,e.access_level,e.last_used_at
            FROM entitlements e JOIN identities i ON e.identity_id=i.id
            JOIN applications a ON e.application_id=a.id ORDER BY i.id,e.id""",
-        'requests':"""SELECT r.id,i.name AS employee,a.name AS application,
+        'requests':"""SELECT r.id,i.name AS employee,i.department,a.name AS application,
            r.requested_level,r.status,r.requested_at
            FROM access_requests r JOIN identities i ON r.identity_id=i.id
            JOIN applications a ON r.application_id=a.id ORDER BY r.id DESC""",
