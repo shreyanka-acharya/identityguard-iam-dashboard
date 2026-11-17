@@ -76,9 +76,7 @@ if page == 'Overview':
     grants = [g for g in grants if department == 'All departments' or g['department'] == department]
     requests = enterprise_table('requests')
     if department != 'All departments':
-        # Request rows are joined to names, so filter through identity names.
-        selected_names = {p['name'] for p in selected}
-        requests = [r for r in requests if r['employee'] in selected_names]
+        requests = [r for r in requests if r['department'] == department]
     pending = sum(r['status'] == 'Pending' for r in requests)
     disabled_grants = sum(g['identity_status'] == 'Disabled' for g in grants)
     stale_grants = sum(g['identity_status'] == 'Active' and
