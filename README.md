@@ -1,6 +1,6 @@
-# IdentityGuard - IAM Dashboard
+# Accessly - Identity & Access Management Dashboard
 
-A local, portfolio-focused Identity & Access Management (IAM) demo using synthetic employee identities.
+Accessly is a simple identity and access management dashboard for exploring employee identities, application permissions, access reviews, and lifecycle workflows using synthetic enterprise data.
 
 ## Features
 - Identity directory and dashboard metrics
