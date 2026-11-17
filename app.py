@@ -5,7 +5,7 @@ import streamlit as st
 from iam import initialize, identities, events, joiner, mover, leaver, access_findings, ROLES
 from seed_data import seed_enterprise, enterprise_summary, enterprise_table
 
-st.set_page_config(page_title='SageID', page_icon='🔐', layout='wide')
+st.set_page_config(page_title='Accessly', page_icon='🔐', layout='wide')
 initialize()
 st.markdown("""
 <style>
@@ -34,8 +34,8 @@ div[data-testid="stDataFrame"], [data-testid="stPlotlyChart"] {
 [data-testid="stAlert"] { border-radius: 12px; }
 </style>
 """, unsafe_allow_html=True)
-st.title('SageID')
-st.markdown('**Identity & Access Management**')
+st.title('Accessly')
+st.markdown('**A simpler way to explore identities, roles, and access.**')
 st.caption('Local IAM learning dashboard | Synthetic identities | No production authentication')
 page = st.sidebar.radio('Navigate', ['Overview', 'Identities', 'JML Workflows', 'Access Review', 'Audit Log', 'Applications', 'Access Requests'])
 st.sidebar.divider()
